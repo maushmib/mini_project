@@ -39,7 +39,7 @@ for fname in os.listdir(IMAGE_DIR):
     if img is None or mask is None:
         continue
 
-    # resize to half
+   
     img = cv2.resize(img, (img.shape[1]//2, img.shape[0]//2))
     mask = cv2.resize(mask, (mask.shape[1]//2, mask.shape[0]//2))
 
