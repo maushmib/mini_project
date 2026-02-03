@@ -8,13 +8,12 @@ from torch.utils.data import Dataset, DataLoader
 IMAGE_DIR = "dataset/images/"
 MASK_DIR = "dataset/masks/"
 
-PATCH_SIZE = 3
-STRIDE = 5
-BATCH = 512
-EPOCHS = 8
+PATCH_SIZE = 5    # bigger patch
+STRIDE = 2        # smaller stride
+BATCH = 256
+EPOCHS = 15
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-
 
 # -------------------------
 # Dataset: extract small patches
@@ -29,6 +28,9 @@ class PatchDataset(Dataset):
 
             img = cv2.imread(os.path.join(IMAGE_DIR, fname))
             mask = cv2.imread(os.path.join(MASK_DIR, fname.replace(".jpg", ".png")))
+
+            if img is None or mask is None:
+                continue
 
             img = cv2.resize(img, (img.shape[1]//2, img.shape[0]//2))
             mask = cv2.resize(mask, (mask.shape[1]//2, mask.shape[0]//2))
@@ -54,18 +56,20 @@ class PatchDataset(Dataset):
 
 
 # -------------------------
-# Small CNN (exactly like first working model)
+# Slightly bigger CNN
 # -------------------------
 class PatchCNN(nn.Module):
     def __init__(self):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Conv2d(3, 8, 3, padding=1),
+            nn.Conv2d(3, 16, 3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(16, 32, 3, padding=1),
             nn.ReLU(),
             nn.Flatten(),
-            nn.Linear(8*PATCH_SIZE*PATCH_SIZE, 16),
+            nn.Linear(32*PATCH_SIZE*PATCH_SIZE, 64),
             nn.ReLU(),
-            nn.Linear(16, 2)
+            nn.Linear(64, 2)
         )
 
     def forward(self, x):
@@ -84,22 +88,18 @@ loss_fn = nn.CrossEntropyLoss()
 opt = torch.optim.Adam(model.parameters(), lr=0.001)
 
 print("Training CNN...")
-
 for e in range(EPOCHS):
-    total = 0
+    total_loss = 0
     for x, y in loader:
         x, y = x.to(DEVICE), y.to(DEVICE)
-
         out = model(x)
         loss = loss_fn(out, y)
-
         opt.zero_grad()
         loss.backward()
         opt.step()
+        total_loss += loss.item()
 
-        total += loss.item()
+    print(f"Epoch {e+1} Loss: {total_loss:.3f}")
 
-    print(f"Epoch {e+1} Loss: {total:.3f}")
-
-torch.save(model.state_dict(), "cnn_model.pth")
-print("Model saved as cnn_model.pth")
+torch.save(model.state_dict(), "cnn_model_fixed.pth")
+print("Model saved as cnn_model_fixed.pth")
