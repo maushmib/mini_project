@@ -1,54 +1,85 @@
-import torch
 import cv2
-import os
 import numpy as np
-from train_unet import UNet, SIZE, DEVICE
+import torch
+import torch.nn as nn
+import os
+
+PATCH_SIZE = 3
+STRIDE = 5
 
 TEST_DIR = "dataset/tests/"
 OUTPUT_DIR = "dataset/output/"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-PATCH_SIZE = 3
-STRIDE = 5
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-model = UNet().to(DEVICE)
-model.load_state_dict(torch.load("leaf_unet.pth", map_location=DEVICE))
+
+# same CNN
+class PatchCNN(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        self.net = nn.Sequential(
+            nn.Conv2d(3, 16, 3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(16, 32, 3, padding=1),
+            nn.ReLU(),
+            nn.Flatten(),
+            nn.Linear(32*PATCH_SIZE*PATCH_SIZE, 64),
+            nn.ReLU(),
+            nn.Linear(64, 2)
+        )
+
+    def forward(self, x):
+        return self.net(x)
+
+
+model = PatchCNN().to(DEVICE)
+model.load_state_dict(torch.load("cnn_model.pth", map_location=DEVICE))
 model.eval()
 
+
 for fname in os.listdir(TEST_DIR):
-    if not fname.lower().endswith((".jpg", ".png")):
-        continue
 
     img_path = os.path.join(TEST_DIR, fname)
     original_img = cv2.imread(img_path)
+
+    if original_img is None:
+        continue
+
     h, w = original_img.shape[:2]
 
-    # Predict full mask (fast)
-    x = cv2.resize(original_img, (SIZE, SIZE)) / 255.0
-    x = torch.tensor(x).permute(2,0,1).unsqueeze(0).float().to(DEVICE)
-    with torch.no_grad():
-        mask_pred = model(x)[0][0].cpu().numpy()
+    scale = 0.5
+    img = cv2.resize(original_img, (int(w*scale), int(h*scale)))
 
-    # Resize mask back to original size
-    mask_pred = cv2.resize(mask_pred, (w,h), interpolation=cv2.INTER_NEAREST)
+    h_small, w_small = img.shape[:2]
 
-    # Initialize neat patch-style mask
-    mask = np.zeros((h,w), dtype=np.uint8)
+    mask_small = np.zeros((h_small, w_small), dtype=np.uint8)
 
-    # Loop over patches (small, just for marking)
-    for y in range(0, h-PATCH_SIZE+1, STRIDE):
-        for x in range(0, w-PATCH_SIZE+1, STRIDE):
-            patch = mask_pred[y:y+PATCH_SIZE, x:x+PATCH_SIZE]
-            if np.any(patch > 0.3):  # patch has any anomaly
-                mask[y:y+PATCH_SIZE, x:x+PATCH_SIZE] = 255
+    for y in range(0, h_small-PATCH_SIZE+1, STRIDE):
+        for x in range(0, w_small-PATCH_SIZE+1, STRIDE):
 
-    # Apply red markings neatly
+            patch = img[y:y+PATCH_SIZE, x:x+PATCH_SIZE] / 255.0
+            patch = np.transpose(patch, (2,0,1))
+
+            tensor = torch.tensor(patch).unsqueeze(0).float().to(DEVICE)
+
+            with torch.no_grad():
+                pred = model(tensor).argmax(1).item()
+
+            if pred == 1:
+                mask_small[y:y+PATCH_SIZE, x:x+PATCH_SIZE] = 255
+
+
+    mask = cv2.resize(mask_small, (w, h), interpolation=cv2.INTER_NEAREST)
+
     result = original_img.copy()
     result[mask==255] = [0,0,255]
 
-    # Save output
     out_path = os.path.join(OUTPUT_DIR, fname.replace(".jpg","_output.png"))
     cv2.imwrite(out_path, result)
+
     print("Saved:", out_path)
 
-print("All test images processed: neat red markings like old RF!")
+
+print("All test images processed!")
