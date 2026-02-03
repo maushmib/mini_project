@@ -17,7 +17,7 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 # -------------------------
-# Dataset (same patch logic)
+# Dataset: extract small patches
 # -------------------------
 class PatchDataset(Dataset):
     def __init__(self):
@@ -37,7 +37,6 @@ class PatchDataset(Dataset):
 
             for y in range(0, h-PATCH_SIZE+1, STRIDE):
                 for x in range(0, w-PATCH_SIZE+1, STRIDE):
-
                     patch = img[y:y+PATCH_SIZE, x:x+PATCH_SIZE] / 255.0
                     patch = np.transpose(patch, (2,0,1))
 
@@ -55,21 +54,18 @@ class PatchDataset(Dataset):
 
 
 # -------------------------
-# Small CNN
+# Small CNN (exactly like first working model)
 # -------------------------
 class PatchCNN(nn.Module):
     def __init__(self):
         super().__init__()
-
         self.net = nn.Sequential(
-            nn.Conv2d(3, 16, 3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(16, 32, 3, padding=1),
+            nn.Conv2d(3, 8, 3, padding=1),
             nn.ReLU(),
             nn.Flatten(),
-            nn.Linear(32*PATCH_SIZE*PATCH_SIZE, 64),
+            nn.Linear(8*PATCH_SIZE*PATCH_SIZE, 16),
             nn.ReLU(),
-            nn.Linear(64, 2)
+            nn.Linear(16, 2)
         )
 
     def forward(self, x):

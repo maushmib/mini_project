@@ -19,37 +19,38 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # ---------------------------
-# CNN Model (same as before)
+# CNN Model (matches training)
 # ---------------------------
 class PatchCNN(nn.Module):
     def __init__(self):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Conv2d(3, 16, 3, padding=1),
+            nn.Conv2d(3, 32, 3, padding=1),  # 32 filters
             nn.ReLU(),
-            nn.Conv2d(16, 32, 3, padding=1),
+            nn.Conv2d(32, 64, 3, padding=1), # 64 filters
             nn.ReLU(),
             nn.Flatten(),
-            nn.Linear(32*PATCH_SIZE*PATCH_SIZE, 64),
+            nn.Linear(64*PATCH_SIZE*PATCH_SIZE, 128),
             nn.ReLU(),
-            nn.Linear(64, 2)
+            nn.Linear(128, 2)
         )
 
     def forward(self, x):
         return self.net(x)
 
+# Load trained model
 model = PatchCNN().to(DEVICE)
 model.load_state_dict(torch.load("cnn_model.pth", map_location=DEVICE))
 model.eval()
 
 # ---------------------------
-# Accuracy counters
+# Pixel-level metrics counters
 # ---------------------------
 y_true = []
 y_pred = []
 
 # ---------------------------
-# Process test images
+# Process each test image
 # ---------------------------
 for fname in os.listdir(TEST_DIR):
     if not fname.lower().endswith(".jpg"):
@@ -62,12 +63,12 @@ for fname in os.listdir(TEST_DIR):
 
     h, w = original_img.shape[:2]
 
-    # Resize for faster processing
+    # Resize for faster patch processing
     scale = 0.5
     img = cv2.resize(original_img, (int(w*scale), int(h*scale)))
     h_small, w_small = img.shape[:2]
 
-    # Prepare prediction mask
+    # Prediction mask (small)
     mask_small = np.zeros((h_small, w_small), dtype=np.uint8)
 
     # ---------------------------
@@ -85,37 +86,35 @@ for fname in os.listdir(TEST_DIR):
             if pred == 1:
                 mask_small[y:y+PATCH_SIZE, x:x+PATCH_SIZE] = 255
 
-    # Resize mask back to original size
+    # Resize mask to original size
     mask = cv2.resize(mask_small, (w, h), interpolation=cv2.INTER_NEAREST)
     mask_binary = (mask > 0).astype(np.uint8)
 
-    # ---------------------------
-    # Apply red mask on original image
-    # ---------------------------
+    # Apply red mask
     result = original_img.copy()
     result[mask_binary==1] = [0,0,255]
 
+    # Save output
     out_path = os.path.join(OUTPUT_DIR, fname.replace(".jpg","_output.png"))
     cv2.imwrite(out_path, result)
-    print("Saved:", out_path)
+
+    # Compute off-type percentage for this image
+    off_percent = 100.0 * np.count_nonzero(mask_binary) / (mask_binary.shape[0] * mask_binary.shape[1])
+    print(f"{fname} -> {off_percent:.2f}% off-type, saved to {out_path}")
 
     # ---------------------------
-    # Load ground-truth mask
-    # ---------------------------
+    # Load corresponding ground truth mask
     # map test1.jpg -> img1.png
     num = fname.replace("test","").replace(".jpg","")
     mask_path = os.path.join(MASK_DIR, f"img{num}.png")
     gt = cv2.imread(mask_path)
-    if gt is None:
-        print("Skipping ground truth for:", fname)
-        continue
-
-    gt = cv2.resize(gt, (w, h))
-    gt_binary = (gt[:,:,2] > 150).astype(np.uint8)  # same logic as train.py / test.py
-
-    # Flatten for pixel-level evaluation
-    y_true.extend(gt_binary.flatten())
-    y_pred.extend(mask_binary.flatten())
+    if gt is not None:
+        gt = cv2.resize(gt, (w, h))
+        gt_binary = (gt[:,:,2] > 150).astype(np.uint8)  # same logic as training
+        y_true.extend(gt_binary.flatten())
+        y_pred.extend(mask_binary.flatten())
+    else:
+        print(f"Skipping ground truth for: {fname}")
 
 # ---------------------------
 # Pixel-level metrics
@@ -130,11 +129,10 @@ if len(y_true) > 0:
     cm = confusion_matrix(y_true, y_pred)
     print("Confusion Matrix:\n", cm)
 
-    # IoU (Intersection over Union) for Off-type
+    # IoU for Off-type
     intersection = np.logical_and(y_true==1, y_pred==1).sum()
     union = np.logical_or(y_true==1, y_pred==1).sum()
     iou = intersection / union if union > 0 else 0
     print(f"Pixel-level IoU for Off-type: {iou:.4f}")
-
 else:
     print("⚠ No ground truth masks found or all skipped")
