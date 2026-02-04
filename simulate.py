@@ -32,7 +32,7 @@ model.eval()
 # ===============================
 # Get images
 # ===============================
-files = sorted([f for f in os.listdir(TEST_DIR) if f.endswith(".jpg")])
+files = sorted([f for f in os.listdir(TEST_DIR) if f.endswith(".jpg") ])
 N = len(files)
 
 # Auto grid shape (square-ish)
