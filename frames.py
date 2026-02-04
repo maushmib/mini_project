@@ -2,7 +2,7 @@ import cv2
 import os
 
 video_path = "wp1.mp4"
-output_folder = "frames"
+output_folder = "dataset/tests"
 
 os.makedirs(output_folder, exist_ok=True)
 
@@ -23,7 +23,7 @@ while True:
         break
 
     if count % frame_interval == 0:
-        name = f"frame_{saved}.jpg"
+        name = f"test{saved}.jpg"
         cv2.imwrite(os.path.join(output_folder, name), frame)
         saved += 1
 
