@@ -5,25 +5,24 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset
 
-# PATHS
+# ===== Paths =====
 IMAGE_DIR  = "dataset/images/"
 MASK_DIR   = "dataset/masks/"
 
-PATCH_SIZE = 25
-STRIDE = 4
-
+# ===== Settings =====
+PATCH_SIZE = 17   # smaller patch for better precision
+STRIDE = 2        # small stride for overlapping
+# PATCH_SIZE and STRIDE will be imported in train and test
 
 # =====================================================
-# DATASET
+# Dataset (center-pixel labeling)
 # =====================================================
 class PatchDataset(Dataset):
-
     def __init__(self):
         self.data = []
         print("Preparing patches...")
 
         for fname in os.listdir(IMAGE_DIR):
-
             if not fname.endswith(".jpg"):
                 continue
 
@@ -48,10 +47,8 @@ class PatchDataset(Dataset):
 
         print("Total patches:", len(self.data))
 
-
     def __len__(self):
         return len(self.data)
-
 
     def __getitem__(self, idx):
         x, y = self.data[idx]
@@ -59,10 +56,9 @@ class PatchDataset(Dataset):
 
 
 # =====================================================
-# CNN
+# CNN (texture, color, edge aware)
 # =====================================================
 class PatchCNN(nn.Module):
-
     def __init__(self):
         super().__init__()
 
@@ -79,7 +75,7 @@ class PatchCNN(nn.Module):
             nn.ReLU()
         )
 
-        size = PATCH_SIZE // 4
+        size = PATCH_SIZE // 4  # due to 2 maxpools
 
         self.classifier = nn.Sequential(
             nn.Flatten(),
