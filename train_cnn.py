@@ -35,7 +35,7 @@ def train():
         print(f"Epoch {e+1}/{EPOCHS}  Loss: {total_loss:.3f}")
 
     torch.save(model.state_dict(), "patch_cnn_model.pth")
-    print("\n✅ Model saved -> patch_cnn_model.pth")
+    print("\nModel saved -> patch_cnn_model.pth")
 
 if __name__ == "__main__":
     train()

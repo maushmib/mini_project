@@ -6,21 +6,22 @@ import csv
 import torch
 from math import ceil
 import string
+import sys
 from model import PatchCNN, PATCH_SIZE, STRIDE
 
 
-# =====================================================
-# USER SETTINGS
-# =====================================================
-video_path = "wp1.mp4"
-gps_log_path = "gps_log.csv"
+
+video_path = sys.argv[1]
+gps_log_path = sys.argv[2]
+output_grid_path = sys.argv[3]
+
 
 output_frames_dir = "dataset/tests"
 output_overlay_dir = "dataset/output"
 
 target_fps = 1
 cell_size_m = 10
-# =====================================================
+
 
 
 os.makedirs(output_frames_dir, exist_ok=True)
@@ -29,10 +30,8 @@ os.makedirs(output_overlay_dir, exist_ok=True)
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 
-# =====================================================
-# STEP 1 — Extract frames
-# =====================================================
 cap = cv2.VideoCapture(video_path)
+
 original_fps = cap.get(cv2.CAP_PROP_FPS)
 frame_interval = max(1, int(original_fps / target_fps))
 
@@ -64,9 +63,6 @@ cap.release()
 print(f"Extracted {len(frames)} frames.")
 
 
-# =====================================================
-# STEP 2 — Read GPS
-# =====================================================
 gps_data = []
 
 with open(gps_log_path) as f:
@@ -86,9 +82,6 @@ min_lon, max_lon = min(lons), max(lons)
 avg_lat = (min_lat + max_lat) / 2
 
 
-# =====================================================
-# STEP 3 — PURE NATURAL GRID (NO HARD CODING)
-# =====================================================
 cell_lat = cell_size_m / 111000
 cell_lon = cell_size_m / (111000 * np.cos(np.radians(avg_lat)))
 
@@ -100,17 +93,11 @@ grid = np.zeros((grid_rows, grid_cols))
 print(f"Grid created: {grid_rows} rows × {grid_cols} cols")
 
 
-# =====================================================
-# STEP 4 — Load CNN
-# =====================================================
 model = PatchCNN().to(DEVICE)
 model.load_state_dict(torch.load("patch_cnn_model.pth", map_location=DEVICE))
 model.eval()
 
 
-# =====================================================
-# STEP 5 — CNN predictions
-# =====================================================
 anomaly_results = []
 
 for i, frame in enumerate(frames):
@@ -134,19 +121,16 @@ for i, frame in enumerate(frames):
                 cv2.circle(pred_mask, (x+PATCH_SIZE//2, y+PATCH_SIZE//2), 2, 1, -1)
 
     overlay = frame.copy()
-    overlay[pred_mask == 1] = [0,0,255]
+    overlay[pred_mask == 1] = [0, 0, 255]
 
     cv2.imwrite(
         os.path.join(output_overlay_dir, f"frame{i}_cnn.png"),
         cv2.addWeighted(frame, 0.7, overlay, 0.4, 0)
     )
 
-    anomaly_results.append(1 if np.any(pred_mask==1) else 0)
+    anomaly_results.append(1 if np.any(pred_mask == 1) else 0)
 
 
-# =====================================================
-# STEP 6 — Map GPS → Grid (PURE math)
-# =====================================================
 for i in range(min(len(frames), len(gps_data))):
 
     lat = gps_data[i]["latitude"]
@@ -162,9 +146,6 @@ for i in range(min(len(frames), len(gps_data))):
         grid[row, col] += 1
 
 
-# =====================================================
-# STEP 7 — Visualization WITH LABELS
-# =====================================================
 plt.figure(figsize=(8,6))
 
 plt.imshow(grid, cmap="Reds", origin="lower")
@@ -192,4 +173,8 @@ plt.xlabel("Longitude Cells")
 plt.ylabel("Latitude Cells")
 
 plt.grid(True)
-plt.show()
+
+plt.savefig(output_grid_path)
+plt.close()
+
+print("Grid image saved successfully!")
