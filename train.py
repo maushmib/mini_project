@@ -5,7 +5,7 @@ from skimage.feature import graycomatrix, graycoprops
 from sklearn.ensemble import RandomForestClassifier
 import joblib
 
-IMAGE_DIR = "dataset/im+ages/"
+IMAGE_DIR = "dataset/images/"
 MASK_DIR = "dataset/masks/"
 
 PATCH_SIZE = 3
