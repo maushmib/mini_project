@@ -1,0 +1,10 @@
+__pycache__/
+uploads/video.mp4
+uploads/gps.csv
+uploads/map.html
+uploads/grid.png
+uploads/gps_log.csv
+dataset/tests/
+dataset/output/
+frames/
+output/

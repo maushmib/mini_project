@@ -10,9 +10,8 @@ IMAGE_DIR  = "dataset/images/"
 MASK_DIR   = "dataset/masks/"
 
 # ===== Settings =====
-PATCH_SIZE = 17   # smaller patch for better precision
-STRIDE = 2        # small stride for overlapping
-# PATCH_SIZE and STRIDE will be imported in train and test
+PATCH_SIZE = 17   # matches patch_cnn_model.pth (classifier.1.weight = [128, 2048])
+STRIDE = 8        # increased from 2 — reduces patches per frame from 222k to ~14k
 
 # =====================================================
 # Dataset (center-pixel labeling)

@@ -1,5 +1,9 @@
 flask
+flask-cors
 torch
 opencv-python
 matplotlib
 numpy
+pandas
+folium
+scikit-learn
